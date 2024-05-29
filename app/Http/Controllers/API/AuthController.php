@@ -9,6 +9,9 @@ use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Fortify\Rules\Password as RulesPassword;
+
+use function Laravel\Prompts\error;
 
 class AuthController extends Controller
 {
@@ -43,5 +46,54 @@ class AuthController extends Controller
         } catch (Exception $e) {
             return ResponseFormatter::error('Authentication Failed');
         }
+    }
+
+    public function register(Request $request)
+    {
+        try {
+            // Validate Request
+            $request->validate([
+                'name' => ['required', 'string', 'max:255'],
+                'email' => ['required', 'email', 'string', 'max:255', 'unique:users'], 
+                'password' => ['required', 'string', new RulesPassword],
+            ]);
+            // Create User
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => Hash::make($request->password)
+            ]);
+
+            // Generate Token
+            $token_result = $user->createToken('auth_token')->plainTextToken;
+
+            // Return Response
+            return ResponseFormatter::success([
+                'access_token' => $token_result,
+                'token_type' => 'Bearer',
+                'user' => $user
+            ], 'Register success');
+        } catch (Exception $error) {
+            // Return Error Response
+            return ResponseFormatter::error($error->getMessage());
+        }
+    }
+
+    public function logout(Request $request)
+    {
+        // Revoke Token
+        $token = $request->user()->currentAccessToken()->delete();
+
+        // Return Response
+        return ResponseFormatter::success($token, 'Logout Success');
+    }
+
+    public function fetch(Request $request)
+    {
+        // Get User
+        $user = $request->user();
+
+        // Return Response
+        return ResponseFormatter::success($user, 'Fetch Success');
     }
 }
